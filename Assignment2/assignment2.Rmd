@@ -1,0 +1,126 @@
+---
+title: "Assignment2"
+author: "pavan"
+date: "03/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+#Setting up Working Directory and importing dataset
+unibank_main<-read.csv("UniversalBank.csv")
+head(unibank_main)
+str(unibank_main)
+#Calling Libraries
+library(class)
+library(dplyr)
+library(caret)
+library(ISLR)
+library(ggplot2)
+#Plotting the data
+ggplot(unibank_main, aes(x = Age, y= Experience)) +geom_point()
+ggplot(unibank_main, aes(x= Income)) + geom_histogram()
+ggplot(unibank_main, aes(x= Experience, y=Income)) +geom_point()
+#Separating categorical variables and numerical variables
+uniban_cat <- c("Education", "Personal.Loan") #categorical Variables
+uniban_num <- c("Age","Experience","Income","Family",
+                "CCAvg","Mortgage","Securities.Account","CD.Account",
+                "Online","CreditCard")        #numeric variables
+cat_UB<-unibank_main[which(colnames(unibank_main) %in% uniban_cat)]
+cat_UB<-data.frame(apply(cat_UB,2,as.character))
+#Converting datatype for catagorical columns to factor
+unibank_main$Personal.Loan <- as.factor(unibank_main$Personal.Loan)
+unibank_main$Education <- as.factor(unibank_main$Education)
+str(unibank_main)
+#Categorical variables to dummy variables conversion
+library(fastDummies)
+dummy_UB <- fastDummies::dummy_columns(cat_UB %>% select(-Personal.Loan)) #Dummy variable for "Education" and "Personal.Loan"
+dummy_UB <- dummy_UB %>% select(-Education) %>% mutate(Personal.Loan=unibank_main$Personal.Loan)
+head(dummy_UB)
+str(dummy_UB)
+#Numerical Variables 
+numeric_UB <- unibank_main[(which(colnames(unibank_main) %in% uniban_num))]
+head(numeric_UB)
+str(numeric_UB)
+new_UB_subset <- cbind(numeric_UB,dummy_UB)
+head(new_UB_subset)
+str(new_UB_subset)
+dim(new_UB_subset)
+#Splitting this combined data set with numeric and dummy variables into Training and test set
+set.seed(12)
+split_index <- createDataPartition(new_UB_subset$Personal.Loan, p=0.6, times = 1, list = FALSE)
+train_UB <- new_UB_subset[split_index, ] #60% data into training set
+test_UB <- new_UB_subset[-split_index, ] #40% data into test set
+#Normalization
+train_normal <- train_UB
+test_normal <- test_UB
+summary(train_UB)
+str(train_UB)
+dim(train_UB)
+normalization_model <- preProcess(train_UB[,-14],method = c("center", "scale"))
+train_normal <- predict(normalization_model,train_UB[,-14])
+test_normal <- predict(normalization_model,test_UB [,-14])
+head(train_normal)
+head(test_normal)
+dim(train_normal)
+dim(test_normal)
+#-----------------------------------------------------------------------------------------------------------------------
+# Question - 1 -> Modelling k-NN with K=1 and sample data
+library(class)
+library(gmodels)
+ques_1_sample <- data.frame(Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2, 
+                            Mortgage = 0, Securities.Account = 0, CD.Account = 0, Online = 1, CreditCard = 1, 
+                            Education_1 = 0, Education_2 = 1,Education_3 = 0)
+knn_test1 <- knn(train_normal,ques_1_sample,cl= train_UB$Personal.Loan, k=1, prob = TRUE) 
+knn_test1
+#-----------------------------------------------------------------------------------------------------------------------
+# Question 2- Finding the best value of K to avoid overfitting
+chooseK_data <- data.frame(k = seq(1,10,1), accuracy = rep(0,10))
+for(i in 1:10){
+  k_choose <- knn(train_normal, test_normal, cl = train_UB$Personal.Loan, k=i)
+  chooseK_data[i,2] <- confusionMatrix(k_choose, test_UB$Personal.Loan)$overall[1]
+}
+chooseK_data
+max(chooseK_data[c("accuracy")])
+#K with highest accuracy , k=3 (best K)
+knn_best <- knn(train_normal,test_normal,cl= train_UB$Personal.Loan, k=3, prob = TRUE)
+# Question 3 - Confusion Matrix using the best K
+test_CM <- test_UB$Personal.Loan
+pred_CM <- knn_best
+CrossTable(x=test_CM, y=pred_CM,prop.chisq = TRUE)
+#Question 4 - Classify the customer with best K
+knn_2 <- knn(train_normal,ques_1_sample,cl= train_UB$Personal.Loan, k=3, prob = TRUE)
+#Question 5 - New split - 50-30-20
+# New Split
+set.seed(1204)
+split_index2 <- createDataPartition(new_UB_subset$Personal.Loan, p=0.5, times = 1, list = FALSE)
+new_train_UB <- new_UB_subset [split_index2, ]
+testVal_UB <- new_UB_subset [-split_index2, ]
+str(testVal_UB)
+split_index_TV <- createDataPartition(testVal_UB$Personal.Loan, p=0.6, times = 1, list= FALSE)
+new_test_UB <- testVal_UB [-split_index_TV, ]
+new_val_UB <- testVal_UB [split_index_TV, ]
+train_normal2 <- new_train_UB
+test_normal2 <- new_test_UB
+val_normal2 <- new_val_UB
+#Normalization of new split data
+normalization_model2 <- preProcess(new_train_UB[,-14],method = c("center", "scale"))
+train_normal2 <- predict(normalization_model2,new_train_UB[,-14])
+test_normal2 <- predict(normalization_model2,new_test_UB[,-14])
+val_normal2 <- predict(normalization_model2,new_val_UB[,-14])
+#Using best k value -  k=3
+knn_3 <- knn(train_normal2,val_normal2,cl= new_train_UB$Personal.Loan, k=3, prob = TRUE)
+#confusion matrix
+test_CM2 <- new_val_UB$Personal.Loan
+pred_CM2 <- knn_3
+CrossTable(x=test_CM2, y=pred_CM2, prop.chisq = FALSE)
+```
