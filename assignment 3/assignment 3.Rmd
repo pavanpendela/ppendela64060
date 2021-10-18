@@ -1,0 +1,113 @@
+---
+title: "assignment 3"
+author: "pavan"
+date: "14/10/2021"
+output: html_document
+---
+
+```{r}
+install.packages("caret")
+install.packages("reshape")
+install.packages("e1071")
+install.packages("gmodels")
+install.packages("ggplot2")
+install.packages("lattice")
+```
+#Setting up Working Directory, importing dataset & changing to factors
+
+```{r}
+setwd("C:/Users/pavankumar pendela/Desktop/R/ppendela-74790/ppendela-74790/assignment 3")
+unibank_main<-read.csv("UniversalBank.csv")
+unibank_main$Personal.Loan <- as.factor(unibank_main$Personal.Loan)
+unibank_main$CreditCard <- as.factor(unibank_main$CreditCard)
+unibank_main$Online <- as.factor(unibank_main$Online)
+```
+# Splitting the data
+
+```{r}
+library(caret)
+set.seed(111)
+split_index <- createDataPartition(unibank_main$Age,1, p=0.6, list = FALSE)
+Train_UB <- unibank_main[split_index,]
+Test_UB <- unibank_main[-split_index,]
+```
+
+#Q1 -  Create a pivot table for the training data with Online as a column variable, CC as a row variable, and Loan as a secondary row variable. The values inside the table should convey the count.In R use functions melt() and cast(), or function table(). In Python, use panda dataframe methods melt() and pivot()
+
+```{r}
+library(reshape)
+train_melt <- melt(Train_UB, id=c("CreditCard", "Personal.Loan"), measure.vars = "Online")
+train_cast <- cast(train_melt, CreditCard+Personal.Loan~variable, value = "Online")
+```
+The result of this melted and casted training set shows the frequency of customers who use Online banking services in different combinations of if or not they have a CC and Personal.loan
+
+#Q2 - Consider the task of classifying a customer who owns a bank credit card and is actively using online banking services. Looking at the pivot table, what is the probability that this customer will accept the loan offer? 
+
+Answer - 79/79+782 = 0.09175377468 or 9.175%. 
+
+9.17% is the probability of a customer who has a bank CC and actively uses Online banking services, as per the pivot table created in the above step.
+
+#Q3 Create two separate pivot tables for the training data. One will have Loan (rows) as a function of Online (columns) and the other will have Loan (rows) as a function of CC.
+
+```{r}
+train_melt1<- melt(Train_UB, id="Personal.Loan", measure.vars = "Online")
+train_melt2<- melt(Train_UB, id="CreditCard", measure.vars="Online")
+train_cast1 <- cast(train_melt1,Personal.Loan~variable, value = "Online" )
+train_cast2 <- cast(train_melt2, CreditCard~variable, value = "Online")
+```
+
+#Q4 - Compute the following quantities [P(A | B) means “the probability ofA given B”]:
+# i. P(CC = 1 | Loan = 1) (the proportion of credit card holders among the loan acceptors) 
+```{r}
+table(Train_UB[,c(10,14)])
+```
+#Answer - P(CC=1|Loan=1) = 79/(79+192)= 0.2915 or 29.15%
+# ii. P(Online = 1 | Loan = 1)
+```{r}
+table(Train_UB[,c(10,13)])
+```
+#Answer-  P(Online=1|Loan=1)= 164/(107+164)= 0.6051 or 60.51%
+# iii. P(Loan = 1) (the proportion of loan acceptors)
+```{r}
+table(Train_UB[,10])
+```
+#Answer- P(Loan = 1) = 271/3001 = 0.0903 or 9.03%
+#iv. P(CC = 1 | Loan = 0)
+```{r}
+table(Train_UB[,c(10,14)])
+```
+#Answer-  P(CC=1|Loan=0)= 782/(782+1948) = 0.2864 or 28.64%
+#v. P(Online = 1 | Loan = 0)
+```{r}
+table(Train_UB[,c(10,13)])
+```
+#Answer- P(Online = 1 | Loan = 0) = 1589/(1589+1141) = 0.5821 or 58.21%
+#vi. P(Loan = 0)
+```{r}
+table(Train_UB[,10])
+```
+#Answer- P(Loan = 0) = 2730/(2730+271)= 0.9097 or 90.97%
+
+#Q5 - Use the quantities computed above to compute the naive Bayes probability P(Loan = 1 | CC = 1, Online = 1).
+
+# Naive Bayes probability = 
+#P(Loan = 1 | CC = 1, Online = 1) = P(CC=1|Loan=1)*P(Online=1|Loan=1)*P(Loan=1)/[(P(CC=1|Loan=1)*P(Online=1|Loan=1)*P(Loan=1))+(P(CC=1|Loan=0)*P(Online=1|Loan=0)*P(Loan=0)]
+# = 0.2915*0.6051*0.0903/(0.2915*0.6051*0.0903)+(0.2864*0.5821*0.9097)
+# = 0.09504 or 9.50%
+
+#Q6 - Compare this value with the one obtained from the pivot table in (B). Which is a more accurate estimate?
+
+# Answer - The value from the pivot table is 9.175% and the value computed from Naive Bayes probability is 9.504%. We can see here the different is significant.The difference is because of the assumption of Conditional Independence in the Naive Bayes formula.For a smaller dataset, the exact values are easy to be calculated. but for bigger chunks of data Naive bayes probability will be preferred based on theinsignificant difference in the probabilities from the Pivot and Naive Bayes formula.
+
+#Q7 - Which of the entries in this table are needed for computing P (Loan = 1 | CC = 1, Online = 1)? In R, run naive Bayes on the data. Examine the model output on training data, and find the entry that corresponds to P (Loan = 1 | CC = 1, Online = 1).Compare this to the number you obtained in (e).
+
+```{r}
+library(e1071)
+NBmodel <- naiveBayes(Personal.Loan~.,Train_UB)
+NBmodel
+pred_Test <- predict(NBmodel, Test_UB)
+library("gmodels")
+#Confusion Matrix of the Naive bayes model
+CrossTable(Test_UB$Personal.Loan, pred_Test, prop.chisq = FALSE)
+# We misclassified 238 cases.
+```
