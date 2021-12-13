@@ -1,0 +1,198 @@
+---
+title: "Final project"
+author: "pavan"
+date: "09/12/2021"
+output:
+  word_document: default
+  html_document: default
+---
+```{r}
+library(ggplot2) 
+library(readr) 
+library(mice)
+library(lattice)
+library(cluster)
+library(MASS)
+library(PCAmixdata)
+library(dplyr)
+```
+```{r}
+setwd("C:/Users/pavankumar pendela/Desktop/R/ppendela-74790/ppendela-74790/final project")
+dataset <- read.csv("Automobile_data.csv")
+summary(dataset)
+data.frame(dataset)
+```
+```{r}
+summary(dataset)
+dataset$symboling <- NULL
+dataset$normalized.losses <- NULL
+```
+```{r}
+#Plot body style vs number of doors (color:make)
+f <- ggplot(dataset, aes(num.of.doors, body.style))
+f + geom_jitter(aes(color=make))
+
+#Just honda & bmw
+f2 <- ggplot(subset(dataset,make=="honda" | make=="bmw"), aes(num.of.doors, body.style))
+f2 + geom_jitter(aes(color=make))
+```
+### Data cleaning
+```{r}
+#Code "?" to NA
+dataset$horsepower[dataset$horsepower == "?"] <- NA
+dataset$price[dataset$price == "?"] <- NA
+dataset$stroke[dataset$stroke == "?"] <- NA
+dataset$bore[dataset$bore == "?"] <- NA
+dataset$peak.rpm[dataset$peak.rpm == "?"] <- NA
+
+
+#convert to numerics
+dataset$horsepower<-as.numeric(as.character(dataset$horsepower))
+dataset$price<-as.numeric(as.character(dataset$price))
+dataset$stroke<-as.numeric(as.character(dataset$stroke))
+dataset$bore<-as.numeric(as.character(dataset$bore))
+dataset$peak.rpm<-as.numeric(as.character(dataset$peak.rpm))
+
+#get rid of no price observations
+dataset<-subset(dataset, !is.na(price))
+
+#Have a look at where we are missing values by obs
+md.pattern(dataset)
+
+#Estimate values using mice package
+tempData <- mice(dataset,m=1,maxit=5,meth='pmm',seed=500)
+summary(tempData)
+```
+
+## Let's take a look at the imputed values & plot to see if our values are sensible
+```{r}
+tempData$imp$horsepower
+tempData$imp$stroke
+tempData$imp$bore
+tempData$imp$peak.rpm
+
+#Plot of vals
+xyplot(tempData, horsepower ~ stroke + bore + peak.rpm,pch=18,cex=1)
+```
+```{r}
+#Overwrite missing
+dataset <- complete(tempData,1)
+
+#Final check for missing and ?
+colSums(is.na(dataset))
+colSums(dataset == '?')
+
+#Scaling the numeric variables
+ind <- sapply(dataset, is.numeric)
+dataset_scale<-dataset
+dataset_scale[ind] <- lapply(dataset[ind], scale)
+
+str(dataset)
+```
+
+#Renaming the levels of a variable to avoid clashes for this method
+```{r}
+levels(dataset_scale$num.of.cylinders)
+head(dataset_scale$num.of.cylinders)
+levels(dataset_scale$num.of.cylinders)<-c('cyl_eight', 'cyl_five', 'cyl_four', 'cyl_six', 'cyl_three', 'cyl_twelve', 'cyl_two')
+head(dataset_scale$num.of.cylinders)
+
+#Split data into qual and quant
+X.quanti <- dataset_scale[,c(8:12,15,17:24)]
+X.quali <- dataset_scale[,c(1:7,13,14,16)]
+
+#pca<-PCAmix(X.quanti,X.quali,ndim=4)
+pca <-PCAmix(X.quanti,X.quali,ndim=4,graph=TRUE, rename.level = TRUE)
+pca
+pca$eig
+pca$ind$coord
+```
+```{r}
+#Plot of PCA coordinates
+plot(pca,choice="ind")
+#conver to data frame
+coords<-as.data.frame(pca$ind$coord)
+```
+Next we apply k means to cluster based on our PCA, I choose 4 as this looks natural from assessing by eye
+```{r}
+#Apply K means to cluster
+km <- kmeans(coords, centers = 4)
+km
+plot(coords[,1], coords[,2], col = km$cluster, pch = 20)
+
+dataset$cluster<-as.factor(km$cluster)
+```
+
+```{r}
+f <- ggplot(dataset, aes(cluster, price,color=cluster))
+f + geom_jitter()
+
+g <- ggplot(dataset, aes(cluster, stroke,color=cluster))
+g + geom_jitter()
+
+h <- ggplot(dataset, aes(cluster, bore,color=cluster))
+h + geom_jitter()
+
+i <- ggplot(dataset, aes(cluster, horsepower,color=cluster))
+i + geom_jitter()
+
+j <- ggplot(dataset, aes(cluster, peak.rpm,color=cluster))
+j + geom_jitter()
+
+k <- ggplot(dataset, aes(cluster, city.mpg,color=cluster))
+k + geom_jitter()
+
+l <- ggplot(dataset, aes(cluster, highway.mpg,color=cluster))
+l + geom_jitter()
+
+m <- ggplot(dataset, aes(cluster, wheel.base,color=cluster))
+m + geom_jitter()
+
+n <- ggplot(dataset, aes(cluster, length,color=cluster))
+n + geom_jitter()
+
+n <- ggplot(dataset, aes(cluster, width,color=cluster))
+n + geom_jitter()
+
+o <- ggplot(dataset, aes(cluster, height,color=cluster))
+o + geom_jitter()
+
+p <- ggplot(dataset, aes(cluster, curb.weight,color=cluster))
+p + geom_jitter()
+
+q <- ggplot(dataset, aes(cluster, engine.size,color=cluster))
+q + geom_jitter()
+
+r <- ggplot(dataset, aes(make,cluster,color=cluster))
+r + geom_jitter()
+
+s <- ggplot(dataset, aes(fuel.type,cluster,color=cluster))
+s + geom_jitter()
+
+t <- ggplot(dataset, aes(aspiration,cluster,color=cluster))
+t + geom_jitter()
+
+u <- ggplot(dataset, aes(num.of.doors,cluster,color=cluster))
+u + geom_jitter()
+
+v <- ggplot(dataset, aes(body.style,cluster,color=cluster))
+v + geom_jitter()
+
+w <- ggplot(dataset, aes(drive.wheels,cluster,color=cluster))
+w + geom_jitter()
+
+x <- ggplot(dataset, aes(engine.location,cluster,color=cluster))
+x + geom_jitter()
+
+y <- ggplot(dataset, aes(engine.type,cluster,color=cluster))
+y + geom_jitter()
+
+z <- ggplot(dataset, aes(num.of.cylinders,cluster,color=cluster))
+z + geom_jitter()
+
+a <- ggplot(dataset, aes(engine.size,cluster,color=cluster))
+a + geom_jitter()
+
+b <- ggplot(dataset, aes(fuel.system,cluster,color=cluster))
+b + geom_jitter()
+```
